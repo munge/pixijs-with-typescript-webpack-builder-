@@ -1,43 +1,91 @@
-import { Application, Container, Graphics, settings } from "pixi.js";
+import { AnimatedSprite, Application, Assets, Container, Graphics, Sprite, Text } from "pixi.js";
+import { RESOURCES } from "../global/global.config";
+import { Manifest } from "../models/manifest.model";
+import { BundlesEnum } from "../enums/bundles.enum";
+import gsap from "gsap";
 
 export default class ApplicationView {
+  private MANIFEST: any = Manifest;
   private BG_COLOR: number = 0x333333;
   private BG_ALPHA: number = 1;
   private application: Application;
   public mainContainer: Container;
 
-  constructor(private canvasRef: any, private BASE_WIDTH: number = 1000, private BASE_HEIGHT: number = 1000) {
-    settings.ROUND_PIXELS = true;
-    this.application = new Application({
-      width: BASE_WIDTH,
-      height: BASE_HEIGHT,
-      antialias: true,
-      autoDensity: false,
-      resolution: 1, //devicePixelRatio,
-      resizeTo: window,
-      // background: this.BG_COLOR,
-      // backgroundAlpha: this.BG_ALPHA,
-      backgroundAlpha: 0,
-      view: canvasRef,
-    });
-    const gt: any = globalThis;
-    gt.__PIXI_APP__ = this.application;
+  constructor(private canvasParent: any, private BASE_WIDTH: number = 1000, private BASE_HEIGHT: number = 1000) {
+    this.application = new Application();
+    this.application
+      .init({
+        width: BASE_WIDTH,
+        height: BASE_HEIGHT,
+        antialias: true,
+        autoDensity: false,
+        resolution: 1, //devicePixelRatio,
+        // resizeTo: window,
+        // background: this.BG_COLOR,
+        // backgroundAlpha: this.BG_ALPHA,
+        // backgroundAlpha: 0,
+        roundPixels: true,
+      })
+      .then(() => {
+        canvasParent.appendChild(this.application.canvas);
+        this.application.stage.addChild(this.mainContainer);
+
+        // this.loadAssets([BundlesEnum.MAIN]).then((resources: any) => {
+        this.loadAssets().then((resources: any) => {
+          console.log(resources);
+          RESOURCES.loaded = resources;
+
+          this.draw();
+          this.initListeners();
+        });
+
+        const gt: any = globalThis;
+        gt.__PIXI_APP__ = this.application;
+      });
 
     this.mainContainer = new Container();
-    this.application.stage.addChild(this.mainContainer);
-    this.mainContainer.name = "main container";
-
-    this.draw();
-    this.initListeners();
+    this.mainContainer.label = "main container";
   }
 
   private draw(): void {
     const g: Graphics = new Graphics();
-    g.beginFill(this.BG_COLOR, this.BG_ALPHA);
-    g.drawRect(0, 0, this.BASE_WIDTH, this.BASE_HEIGHT);
-    g.endFill();
+    g.rect(0, 0, this.BASE_WIDTH, this.BASE_HEIGHT);
+    g.fill({ color: this.BG_COLOR, alpha: this.BG_ALPHA });
     this.mainContainer.addChild(g);
-    g.name = "background graphics";
+    g.label = "background graphics";
+
+    const sprite = new Sprite(RESOURCES.getTexture("background"));
+    this.mainContainer.addChild(sprite);
+    sprite.label = "background sprite";
+    sprite.anchor.set(0.5);
+    sprite.position.set(this.BASE_WIDTH * 0.5, this.BASE_HEIGHT * 0.5);
+
+    const f22 = new Sprite(RESOURCES.getTexture("f22", BundlesEnum.BUNDLE_1));
+    this.mainContainer.addChild(f22);
+    f22.label = "f22";
+    f22.scale.set(0.5);
+    f22.anchor.set(0.5);
+    f22.position.set(this.BASE_WIDTH * 0.5, this.BASE_HEIGHT * 0.5);
+    f22.eventMode = "static";
+    f22.cursor = "pointer";
+    f22.on("pointerdown", () => {
+      gsap.fromTo(f22, 0.1, { alpha: 1 }, { alpha: 0.5, yoyo: true, repeat: 1 });
+    });
+
+    const text = new Text({ text: "Fira Go Text", style: { fontFamily: "Firago Bold", fontSize: 36, fill: 0xffffff } });
+    this.mainContainer.addChild(text);
+    text.label = "test text";
+    text.anchor.set(0.5);
+    text.position.set(this.BASE_WIDTH * 0.5, 100);
+
+    const guy = new AnimatedSprite(RESOURCES.getTextures("guy", BundlesEnum.BUNDLE_1));
+    this.mainContainer.addChild(guy);
+    guy.label = "guy animation";
+    guy.gotoAndPlay(0);
+    guy.animationSpeed = 0.1;
+    guy.anchor.set(0.5, 1);
+    guy.position.set(-guy.width, this.BASE_HEIGHT);
+    gsap.to(guy, 5, { x: this.BASE_WIDTH + guy.width, repeat: -1, ease: "none" });
   }
   private initListeners(): void {
     window.onresize = () => {
@@ -46,20 +94,23 @@ export default class ApplicationView {
     this.resize();
   }
 
+  private async loadAssets(bundles: string[] = []): Promise<void> {
+    const manifest = this.MANIFEST;
+    const bundlesToLoad = bundles.length == 0 ? manifest.bundles.map((bundle: any) => bundle.name) : bundles;
+
+    await Assets.init({ manifest });
+
+    return Assets.loadBundle(bundlesToLoad, (pr: any) => {
+      console.log("progress: ", pr);
+    });
+  }
+
   private resize(): void {
-    // contain
-    const scale: number = Math.min(this.application.view.width / this.BASE_WIDTH, this.application.view.height / this.BASE_HEIGHT);
-
-    // cover
-    // const scale: number = Math.max(
-    //   this.application.view.width / this.BASE_WIDTH,
-    //   this.application.view.height / this.BASE_HEIGHT
-    // );
-
-    this.mainContainer.scale.set(scale);
-    this.mainContainer.position.set(
-      (this.application.view.width - this.mainContainer.width) * 0.5,
-      (this.application.view.height - this.mainContainer.height) * 0.5
-    );
+    // scale by parent width or height
+    if (this.application.canvas.parentElement) {
+      const canvasParentBoundingBox = this.application.canvas.parentElement.getBoundingClientRect();
+      const scale: number = Math.min(canvasParentBoundingBox.width / this.BASE_WIDTH, canvasParentBoundingBox.height / this.BASE_HEIGHT);
+      this.application.canvas.style.transform = `scale(${scale})`;
+    }
   }
 }
