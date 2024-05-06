@@ -81,11 +81,16 @@ export default class ApplicationView {
     const guy = new AnimatedSprite(RESOURCES.getTextures("guy", BundlesEnum.BUNDLE_1));
     this.mainContainer.addChild(guy);
     guy.label = "guy animation";
-    guy.gotoAndPlay(0);
+    guy.loop = false;
     guy.animationSpeed = 0.1;
     guy.anchor.set(0.5, 1);
-    guy.position.set(-guy.width, this.BASE_HEIGHT);
-    gsap.to(guy, 5, { x: this.BASE_WIDTH + guy.width, repeat: -1, ease: "none" });
+    guy.position.set(this.BASE_WIDTH * 0.5, this.BASE_HEIGHT);
+    guy.eventMode = "static";
+    guy.cursor = "pointer";
+    guy.on("pointerdown", () => {
+      guy.gotoAndPlay(0);
+      gsap.fromTo(guy, 0.3, { y: this.BASE_HEIGHT }, { y: this.BASE_HEIGHT - 100, yoyo: true, repeat: 1 });
+    });
   }
   private initListeners(): void {
     window.onresize = () => {
